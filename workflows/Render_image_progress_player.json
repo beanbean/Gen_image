@@ -1,0 +1,367 @@
+{
+  "name": "Render_image_progress_player",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "49bc57b3-47fc-44e3-8f95-f05f2f9fc067",
+              "leftValue": "={{ $json.image_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -832,
+        -640
+      ],
+      "id": "64cb10ec-91ec-47ba-8966-da1c6f603d05",
+      "name": "Check: Render Success?"
+    },
+    {
+      "parameters": {
+        "tableId": "bot_queue",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "bot_type",
+              "fieldValue": "PLAYER"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pending"
+            },
+            {
+              "fieldId": "payload",
+              "fieldValue": "={{\n  {\n    \"recipient\": {\n      \"id\": $('JS: Format Report').item.json.zalo_captain_id\n    },\n    \"message\": {\n      \"text\": $('JS: Format Report').item.json.text_report + \"\\n\\n(⚠️ Ảnh báo cáo đang được bảo trì, bạn xem tạm số liệu ở trên nhé!)\"\n    }\n  }\n}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        -544
+      ],
+      "id": "65d7245d-e450-4da4-99ad-d98f66934837",
+      "name": "Queue: Fallback Text.",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vEyQn3WuVDmUMZO6",
+          "name": "Supabase marathon"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://render.nexme.vn/render",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "api_key",
+              "value": "goPT@marathon10000TV"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"template\": \"personal_progress.hbs\",\n    \"filename_prefix\": \"personal\",\n    \n    // GỬI DỮ LIỆU THÔ - TEMPLATE TỰ XỬ\n    \"data\": {\n        \"player\": {\n            \"name\": $json.raw_data.player.name,\n            \"team\": $json.raw_data.player.team,\n            \"avatar\": $json.raw_data.player.avatar,\n            \"round_name\": $json.raw_data.player.round_name,\n            \"info_line\": $json.raw_data.player.info_line,\n            // Map mảng days thành grid đơn giản\n            \"grid\": $json.raw_data.days.map(d => ({\n                \"day\": d.day_index,\n                // Server V8 cần delta thô (số thực), nếu chưa nhập thì gửi null\n                \"delta_from_start\": d.daily_delta \n            }))\n        },\n        \"stats\": {\n             \"start_weight\": $json.raw_data.stats.start,\n             \"current_weight\": $json.raw_data.stats.finish,\n             // Truyền current_change vào delta_weight để hiển thị ở footer\n             \"delta_weight\": $json.raw_data.stats.current_change \n        },\n        // Logic kiểm tra xem đã xong chưa\n        \"is_finished\": $json.raw_data.days.some(d => d.day_index === 10 && d.daily_delta !== null)\n    }\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1056,
+        -640
+      ],
+      "id": "4d8be6c2-71cd-4655-bc14-ffbe736c8452",
+      "name": "API: Render Personal Card",
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function toNum(v) {\n  if (v === null || v === undefined) return null;\n  const s = String(v).trim();\n  if (!s) return null;\n  const n = Number(s.replace(\",\", \".\"));\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction pickLastNonNull(arr) {\n  for (let i = arr.length - 1; i >= 0; i--) if (arr[i] !== null) return arr[i];\n  return null;\n}\n\nreturn items.map(item => {\n  const j = item.json;\n\n  const name = j.player_name ?? j[\"Người chơi\"] ?? \"\";\n  const team = j.team ?? j[\"Đội\"] ?? \"\";\n  const avatar_url = j.avatar_url ?? j.avatar ?? j[\"avatar\"] ?? null;\n\n  // ========================================================\n  // 🔧 FALLBACK LOGIC FOR CAPTAIN ID\n  // ========================================================\n\n  // Team-to-Captain ID mapping (fallback when Google Sheets missing data)\n  const TEAM_CAPTAIN_FALLBACK = {\n    \"Đội Báo Săn\": \"3633624730889700356\",\n    \"Đội Cánh Gió\": \"2405161230734177\",  // Update with actual captain ID\n    \"Đội Sóng Dũng\": \"2405161230734177\", // Update with actual captain ID\n    // Add more teams as needed\n  };\n\n  // Ultimate fallback (used when team not in mapping)\n  const DEFAULT_CAPTAIN_ID = \"2405161230734177\";\n\n  // Try to get captain ID from Google Sheets first\n  let zaloID_captain = j.zaloID_captain ?? j[\"zaloID_captain\"] ?? null;\n\n  // If empty string, treat as null\n  if (zaloID_captain === \"\") {\n    zaloID_captain = null;\n  }\n\n  // Apply fallback logic\n  if (!zaloID_captain) {\n    // Try team-specific fallback\n    zaloID_captain = TEAM_CAPTAIN_FALLBACK[team] ?? DEFAULT_CAPTAIN_ID;\n    console.warn(`⚠️ FALLBACK: Using fallback captain ID for ${name} (${team}): ${zaloID_captain}`);\n  }\n\n  // Final validation\n  if (!zaloID_captain) {\n    console.error(`❌ ERROR: No captain ID available for ${name} (${team})`);\n  }\n\n  const round_name = j[\"Vòng\"] ?? j.round_name ?? \"Marathon\";\n  const round_range_raw = j[\"Thời Gian\"] ?? j.time ?? j.time_range ?? \"\";\n  const round_range = typeof round_range_raw === \"string\"\n    ? round_range_raw.replace(\"-\", \" – \")\n    : \"\";\n\n  const weights = [];\n  for (let d = 0; d <= 10; d++) {\n    const key1 = `day${d}`;\n    const key2 = `Day ${d}`;\n    const val = (j[key1] !== undefined) ? j[key1] : j[key2];\n    weights.push(toNum(val));\n  }\n\n  const startWeight = weights[0];\n  const currentWeight = pickLastNonNull(weights);\n  const deltaWeight =\n    (startWeight !== null && currentWeight !== null)\n      ? (currentWeight - startWeight)\n      : null;\n\n  const is_finished = weights[10] !== null;\n\n  const grid = [];\n  for (let day = 1; day <= 10; day++) {\n    const w = weights[day];\n    grid.push({\n      day,\n      delta_from_start:\n        (startWeight !== null && w !== null) ? (w - startWeight) : null\n    });\n  }\n\n  const data_for_template = {\n    player: {\n      name,\n      team,\n      avatar: avatar_url,\n      round_name,\n      round_range,\n      info_line: j.info_line ?? j[\"info_line\"] ?? \"\",\n      grid\n    },\n    stats: {\n      start_weight: startWeight,\n      current_weight: currentWeight,\n      delta_weight: deltaWeight\n    },\n    is_finished\n  };\n\n  // NEW — force info_line = round_range if info_line empty\n  if (!data_for_template.player.info_line || data_for_template.player.info_line.trim() === \"\") {\n    data_for_template.player.info_line = round_range;\n  }\n\n  const raw_days = [];\n  for (let day = 1; day <= 10; day++) {\n    const w = weights[day];\n    raw_days.push({\n      day_index: day,\n      is_future: w === null,\n      daily_delta: (startWeight !== null && w !== null) ? (w - startWeight) : null,\n      current_weight: w\n    });\n  }\n\n  return {\n    json: {\n      zalo_captain_id: zaloID_captain,  // ✅ With fallback logic\n      zalo_user_id: zaloID_captain,     // Legacy compatibility\n      avatar_url: avatar_url,\n      text_report: `📊 BÁO CÁO TIẾN TRÌNH\n👥 Đội: ${team}\n👤 Thành viên: ${name}\n📅 ${data_for_template.player.info_line}\n-------------------\n💡 Đang tạo ảnh báo cáo...`,\n      raw_data: {\n        days: raw_days,\n        stats: {\n          start: startWeight,\n          finish: weights[10] ?? null,\n          current_change: deltaWeight\n        },\n        player: {\n          name,\n          team,\n          avatar: avatar_url,\n          round_name,\n          info_line: data_for_template.player.info_line\n        }\n      },\n      render_request: {\n        template: j.template ?? \"personal_progress\",\n        data: data_for_template,\n        width: 1080,\n        height: 1444,\n        filename_prefix: \"personal\"\n      }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1280,
+        -640
+      ],
+      "id": "a17ffecd-9cf0-40e4-8efe-5f81baf52922",
+      "name": "JS: Format Report"
+    },
+    {
+      "parameters": {
+        "tableId": "bot_queue",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "bot_type",
+              "fieldValue": "PLAYER"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pending"
+            },
+            {
+              "fieldId": "payload",
+              "fieldValue": "={{ {\n  \"recipient\": {\n    \"id\": $('JS: Format Report').item.json.zalo_captain_id\n  },\n  \"message\": {\n    \"text\": $('JS: Format Report').item.json.text_report,\n    \"attachment\": {\n      \"type\": \"image\",\n      \"payload\": {\n        \"url\": $json.image_url || $json.url\n      }\n    }\n  }\n} }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        -736
+      ],
+      "id": "5642a099-dd6d-45d1-8848-5105c2ce9a73",
+      "name": "Queue: Success Msg",
+      "credentials": {
+        "supabaseApi": {
+          "id": "vEyQn3WuVDmUMZO6",
+          "name": "Supabase marathon"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Cxhi6bFhwv0XbUF4",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Cxhi6bFhwv0XbUF4",
+          "cachedResultName": "Sender_Zalo_OA"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -384,
+        -640
+      ],
+      "id": "db3c7bde-8049-4d79-bc75-fb66d688176e",
+      "name": "Call 'Sender_Zalo_OA_V1'"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Z9nU5cQwEDeSKAn-Ba5HFpHUhQQyOoSxukaO7mG5DV4",
+          "mode": "list",
+          "cachedResultName": "marathon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Z9nU5cQwEDeSKAn-Ba5HFpHUhQQyOoSxukaO7mG5DV4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 345514191,
+          "mode": "list",
+          "cachedResultName": "marathon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Z9nU5cQwEDeSKAn-Ba5HFpHUhQQyOoSxukaO7mG5DV4/edit#gid=345514191"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1712,
+        -640
+      ],
+      "id": "9060613d-cca7-4545-84d9-258676b6b9a4",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Si9LuVmzbdJQ3PJB",
+          "name": "Google Sheets dqcong"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1936,
+        -640
+      ],
+      "id": "e69eea5c-a3d4-4e24-b0b1-9d495d49c893",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1472,
+        -752
+      ],
+      "id": "6433dafc-2f7b-41f2-96d9-e10514b1a9bf",
+      "name": "Loop Over Items"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Check: Render Success?": {
+      "main": [
+        [
+          {
+            "node": "Queue: Success Msg",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue: Fallback Text.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Fallback Text.": {
+      "main": [
+        [
+          {
+            "node": "Call 'Sender_Zalo_OA_V1'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Render Personal Card": {
+      "main": [
+        [
+          {
+            "node": "Check: Render Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JS: Format Report": {
+      "main": [
+        [
+          {
+            "node": "API: Render Personal Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Success Msg": {
+      "main": [
+        [
+          {
+            "node": "Call 'Sender_Zalo_OA_V1'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "JS: Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Sender_Zalo_OA_V1'": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "hORJlWLQ84vPW1tX"
+  },
+  "versionId": "b27019c1-608a-4d1f-813e-a4fc751435f2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bbf85f6bf60f4f428f9bb800a84af65104d12b54938b900d8e31b5ec5fa02d99"
+  },
+  "id": "nxdj3XeZAA4WscYp",
+  "tags": []
+}
