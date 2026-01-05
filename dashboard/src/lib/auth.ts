@@ -1,14 +1,9 @@
 import { betterAuth } from "better-auth";
-import { Pool } from "pg";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL!,
-});
 
 export const auth = betterAuth({
   database: {
     provider: "pg",
-    pool,
+    url: process.env.DATABASE_URL!,
   },
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
   trustedOrigins: [
