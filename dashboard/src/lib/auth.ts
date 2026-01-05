@@ -1,7 +1,11 @@
 import { betterAuth } from "better-auth";
+import type { BetterAuthOptions } from "better-auth";
 
 export const auth = betterAuth({
-  database: process.env.DATABASE_URL!,
+  database: {
+    type: "postgres",
+    url: process.env.DATABASE_URL!,
+  },
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
   trustedOrigins: [
     process.env.BETTER_AUTH_URL || "",
@@ -31,6 +35,6 @@ export const auth = betterAuth({
       },
     },
   },
-});
+} as BetterAuthOptions);
 
 export type Session = typeof auth.$Infer.Session;
