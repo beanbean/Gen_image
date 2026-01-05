@@ -89,10 +89,21 @@ CREATE INDEX IF NOT EXISTS idx_exec_triggered ON execution_logs(triggered_at DES
 CREATE TABLE IF NOT EXISTS teams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
-  round VARCHAR(50),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Add round column if missing (migration safety for existing tables)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'teams' AND column_name = 'round'
+  ) THEN
+    ALTER TABLE teams ADD COLUMN round VARCHAR(50);
+    RAISE NOTICE 'Added missing column: teams.round';
+  END IF;
+END $$;
 
 -- CAPTAINS (synced with user table)
 CREATE TABLE IF NOT EXISTS captains (
