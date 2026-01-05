@@ -1,10 +1,7 @@
 import { betterAuth } from "better-auth";
 
 export const auth = betterAuth({
-  database: {
-    provider: "pg",
-    url: process.env.DATABASE_URL!,
-  },
+  database: process.env.DATABASE_URL!,
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
   trustedOrigins: [
     process.env.BETTER_AUTH_URL || "",
@@ -12,14 +9,14 @@ export const auth = betterAuth({
   ].filter(Boolean),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false, // MVP: skip email verification
+    requireEmailVerification: false,
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
     cookieCache: {
       enabled: true,
-      maxAge: 5 * 60, // Cache session for 5 minutes
+      maxAge: 5 * 60,
     },
   },
   user: {
