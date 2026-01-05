@@ -21,16 +21,24 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn.email({
+      const result = await signIn.email({
         email: formData.email,
         password: formData.password,
       });
 
+      if (result.error) {
+        toast.error(result.error.message || "Đăng nhập thất bại");
+        setLoading(false);
+        return;
+      }
+
       toast.success("Đăng nhập thành công!");
-      router.push("/dashboard");
+
+      // Force reload to ensure session is properly set
+      window.location.href = "/dashboard";
     } catch (error: any) {
-      toast.error("Sai email hoặc mật khẩu");
-    } finally {
+      console.error("Login error:", error);
+      toast.error(error.message || "Sai email hoặc mật khẩu");
       setLoading(false);
     }
   };
