@@ -1,5 +1,5 @@
 {
-  "name": "Render_image_progress_player",
+  "name": "1.Render_image_progress_player",
   "nodes": [
     {
       "parameters": {
@@ -110,7 +110,7 @@
     },
     {
       "parameters": {
-        "jsCode": "function toNum(v) {\n  if (v === null || v === undefined) return null;\n  const s = String(v).trim();\n  if (!s) return null;\n  const n = Number(s.replace(\",\", \".\"));\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction pickLastNonNull(arr) {\n  for (let i = arr.length - 1; i >= 0; i--) if (arr[i] !== null) return arr[i];\n  return null;\n}\n\nreturn items.map(item => {\n  const j = item.json;\n\n  const name = j.player_name ?? j[\"Người chơi\"] ?? \"\";\n  const team = j.team ?? j[\"Đội\"] ?? \"\";\n  const avatar_url = j.avatar_url ?? j.avatar ?? j[\"avatar\"] ?? null;\n\n  // ========================================================\n  // 🔧 FALLBACK LOGIC FOR CAPTAIN ID\n  // ========================================================\n\n  // Team-to-Captain ID mapping (fallback when Google Sheets missing data)\n  const TEAM_CAPTAIN_FALLBACK = {\n    \"Đội Báo Săn\": \"3633624730889700356\",\n    \"Đội Cánh Gió\": \"2405161230734177\",  // Update with actual captain ID\n    \"Đội Sóng Dũng\": \"2405161230734177\", // Update with actual captain ID\n    // Add more teams as needed\n  };\n\n  // Ultimate fallback (used when team not in mapping)\n  const DEFAULT_CAPTAIN_ID = \"2405161230734177\";\n\n  // Try to get captain ID from Google Sheets first\n  let zaloID_captain = j.zaloID_captain ?? j[\"zaloID_captain\"] ?? null;\n\n  // If empty string, treat as null\n  if (zaloID_captain === \"\") {\n    zaloID_captain = null;\n  }\n\n  // Apply fallback logic\n  if (!zaloID_captain) {\n    // Try team-specific fallback\n    zaloID_captain = TEAM_CAPTAIN_FALLBACK[team] ?? DEFAULT_CAPTAIN_ID;\n    console.warn(`⚠️ FALLBACK: Using fallback captain ID for ${name} (${team}): ${zaloID_captain}`);\n  }\n\n  // Final validation\n  if (!zaloID_captain) {\n    console.error(`❌ ERROR: No captain ID available for ${name} (${team})`);\n  }\n\n  const round_name = j[\"Vòng\"] ?? j.round_name ?? \"Marathon\";\n  const round_range_raw = j[\"Thời Gian\"] ?? j.time ?? j.time_range ?? \"\";\n  const round_range = typeof round_range_raw === \"string\"\n    ? round_range_raw.replace(\"-\", \" – \")\n    : \"\";\n\n  const weights = [];\n  for (let d = 0; d <= 10; d++) {\n    const key1 = `day${d}`;\n    const key2 = `Day ${d}`;\n    const val = (j[key1] !== undefined) ? j[key1] : j[key2];\n    weights.push(toNum(val));\n  }\n\n  const startWeight = weights[0];\n  const currentWeight = pickLastNonNull(weights);\n  const deltaWeight =\n    (startWeight !== null && currentWeight !== null)\n      ? (currentWeight - startWeight)\n      : null;\n\n  const is_finished = weights[10] !== null;\n\n  const grid = [];\n  for (let day = 1; day <= 10; day++) {\n    const w = weights[day];\n    grid.push({\n      day,\n      delta_from_start:\n        (startWeight !== null && w !== null) ? (w - startWeight) : null\n    });\n  }\n\n  const data_for_template = {\n    player: {\n      name,\n      team,\n      avatar: avatar_url,\n      round_name,\n      round_range,\n      info_line: j.info_line ?? j[\"info_line\"] ?? \"\",\n      grid\n    },\n    stats: {\n      start_weight: startWeight,\n      current_weight: currentWeight,\n      delta_weight: deltaWeight\n    },\n    is_finished\n  };\n\n  // NEW — force info_line = round_range if info_line empty\n  if (!data_for_template.player.info_line || data_for_template.player.info_line.trim() === \"\") {\n    data_for_template.player.info_line = round_range;\n  }\n\n  const raw_days = [];\n  for (let day = 1; day <= 10; day++) {\n    const w = weights[day];\n    raw_days.push({\n      day_index: day,\n      is_future: w === null,\n      daily_delta: (startWeight !== null && w !== null) ? (w - startWeight) : null,\n      current_weight: w\n    });\n  }\n\n  return {\n    json: {\n      zalo_captain_id: zaloID_captain,  // ✅ With fallback logic\n      zalo_user_id: zaloID_captain,     // Legacy compatibility\n      avatar_url: avatar_url,\n      text_report: `📊 BÁO CÁO TIẾN TRÌNH\n👥 Đội: ${team}\n👤 Thành viên: ${name}\n📅 ${data_for_template.player.info_line}\n-------------------\n💡 Đang tạo ảnh báo cáo...`,\n      raw_data: {\n        days: raw_days,\n        stats: {\n          start: startWeight,\n          finish: weights[10] ?? null,\n          current_change: deltaWeight\n        },\n        player: {\n          name,\n          team,\n          avatar: avatar_url,\n          round_name,\n          info_line: data_for_template.player.info_line\n        }\n      },\n      render_request: {\n        template: j.template ?? \"personal_progress\",\n        data: data_for_template,\n        width: 1080,\n        height: 1444,\n        filename_prefix: \"personal\"\n      }\n    }\n  };\n});"
+        "jsCode": "function toNum(v) {\n  if (v === null || v === undefined) return null;\n  const s = String(v).trim();\n  if (!s) return null;\n  const n = Number(s.replace(\",\", \".\"));\n  return Number.isFinite(n) ? n : null;\n}\n\nfunction pickLastNonNull(arr) {\n  for (let i = arr.length - 1; i >= 0; i--) {\n    if (arr[i] !== null) return arr[i];\n  }\n  return null;\n}\n\n// 🔑 NEW: find previous non-null weight\nfunction findPrevNonNull(arr, idx) {\n  for (let i = idx - 1; i >= 0; i--) {\n    if (arr[i] !== null) return arr[i];\n  }\n  return null;\n}\n\nreturn items.map(item => {\n  const j = item.json;\n\n  const name = j.player_name ?? j[\"Người chơi\"] ?? \"\";\n  const team = j.team ?? j[\"Đội\"] ?? \"\";\n  const avatar_url = j.avatar_url ?? j.avatar ?? j[\"avatar\"] ?? null;\n\n  // ========================================================\n  // 🔧 FALLBACK LOGIC FOR CAPTAIN ID\n  // ========================================================\n  const TEAM_CAPTAIN_FALLBACK = {\n    \"Đội Báo Săn\": \"3633624730889700356\",\n    \"Đội Cánh Gió\": \"2405161230734177\",\n    \"Đội Sóng Dũng\": \"2405161230734177\"\n  };\n\n  const DEFAULT_CAPTAIN_ID = \"2405161230734177\";\n\n  let zaloID_captain = j.zaloID_captain ?? j[\"zaloID_captain\"] ?? null;\n  if (zaloID_captain === \"\") zaloID_captain = null;\n\n  if (!zaloID_captain) {\n    zaloID_captain = TEAM_CAPTAIN_FALLBACK[team] ?? DEFAULT_CAPTAIN_ID;\n    console.warn(`⚠️ FALLBACK captain for ${name} (${team}) → ${zaloID_captain}`);\n  }\n\n  const round_name = j[\"Vòng\"] ?? j.round_name ?? \"Marathon\";\n  const round_range_raw = j[\"Thời Gian\"] ?? j.time ?? j.time_range ?? \"\";\n  const round_range =\n    typeof round_range_raw === \"string\"\n      ? round_range_raw.replace(\"-\", \" – \")\n      : \"\";\n\n  // ========================================================\n  // 📥 READ WEIGHTS Day0 → Day10\n  // ========================================================\n  const weights = [];\n  for (let d = 0; d <= 10; d++) {\n    const key1 = `day${d}`;\n    const key2 = `Day ${d}`;\n    const val = (j[key1] !== undefined) ? j[key1] : j[key2];\n    weights.push(toNum(val));\n  }\n\n  const startWeight = weights[0];\n  const currentWeight = pickLastNonNull(weights);\n  const deltaWeight =\n    (startWeight !== null && currentWeight !== null)\n      ? (currentWeight - startWeight)\n      : null;\n\n  const is_finished = weights[10] !== null;\n\n  // ========================================================\n  // 🔁 GRID — DAILY DELTA vs PREVIOUS NON-NULL DAY (FIXED)\n  // ========================================================\n  const grid = [];\n  for (let day = 1; day <= 10; day++) {\n    const w = weights[day];\n    const prev = (w !== null) ? findPrevNonNull(weights, day) : null;\n\n    const daily_delta =\n      (w !== null && prev !== null) ? (w - prev) : null;\n\n    grid.push({\n      day,\n      delta_from_start: daily_delta   // giữ key cũ để KHÔNG ĐỔI TEMPLATE\n    });\n  }\n\n  const data_for_template = {\n    player: {\n      name,\n      team,\n      avatar: avatar_url,\n      round_name,\n      round_range,\n      info_line: j.info_line ?? j[\"info_line\"] ?? \"\",\n      grid\n    },\n    stats: {\n      start_weight: startWeight,\n      current_weight: currentWeight,\n      delta_weight: deltaWeight\n    },\n    is_finished\n  };\n\n  // 🔁 force info_line = round_range nếu trống\n  if (!data_for_template.player.info_line || data_for_template.player.info_line.trim() === \"\") {\n    data_for_template.player.info_line = round_range;\n  }\n\n  // ========================================================\n  // 📦 RAW DATA — DAILY DELTA vs PREVIOUS DAY (SYNCED)\n  // ========================================================\n  const raw_days = [];\n  for (let day = 1; day <= 10; day++) {\n    const w = weights[day];\n    const prev = (w !== null) ? findPrevNonNull(weights, day) : null;\n\n    const daily_delta =\n      (w !== null && prev !== null) ? (w - prev) : null;\n\n    raw_days.push({\n      day_index: day,\n      is_future: w === null,\n      daily_delta,\n      current_weight: w\n    });\n  }\n\n  return {\n    json: {\n      zalo_captain_id: zaloID_captain,\n      zalo_user_id: zaloID_captain,\n      avatar_url,\n      text_report: `📊 BÁO CÁO TIẾN TRÌNH\n👥 Đội: ${team}\n👤 Thành viên: ${name}\n📅 ${data_for_template.player.info_line}\n-------------------\n💡 Đang tạo ảnh báo cáo...`,\n      raw_data: {\n        days: raw_days,\n        stats: {\n          start: startWeight,\n          finish: weights[10] ?? null,\n          current_change: deltaWeight\n        },\n        player: {\n          name,\n          team,\n          avatar: avatar_url,\n          round_name,\n          info_line: data_for_template.player.info_line\n        }\n      },\n      render_request: {\n        template: j.template ?? \"personal_progress\",\n        data: data_for_template,\n        width: 1080,\n        height: 1444,\n        filename_prefix: \"personal\"\n      }\n    }\n  };\n});\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -238,6 +238,64 @@
       ],
       "id": "6433dafc-2f7b-41f2-96d9-e10514b1a9bf",
       "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -176,
+        -640
+      ],
+      "id": "42b76219-07a9-4943-b043-9ae2608588c0",
+      "name": "Wait",
+      "webhookId": "a9ea2b1d-87ab-4b4b-869f-a98d78608fe9"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 12,
+              "triggerAtMinute": 55
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1936,
+        -816
+      ],
+      "id": "a82c16eb-d1c4-41c2-b103-23b7548face1",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "9fD7jTNV9LbMYGJu",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/9fD7jTNV9LbMYGJu",
+          "cachedResultName": "2.Render_team_leaderboard"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1264,
+        -848
+      ],
+      "id": "77752cc6-ecef-4670-94f1-7ec53a62aa8b",
+      "name": "Call '2.Render_team_leaderboard'"
     }
   ],
   "pinData": {},
@@ -328,7 +386,13 @@
     },
     "Loop Over Items": {
       "main": [
-        [],
+        [
+          {
+            "node": "Call '2.Render_team_leaderboard'",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "JS: Format Report",
@@ -342,7 +406,29 @@
       "main": [
         [
           {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
             "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
             "type": "main",
             "index": 0
           }
@@ -355,9 +441,10 @@
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false,
-    "errorWorkflow": "hORJlWLQ84vPW1tX"
+    "errorWorkflow": "hORJlWLQ84vPW1tX",
+    "executionTimeout": 300
   },
-  "versionId": "b27019c1-608a-4d1f-813e-a4fc751435f2",
+  "versionId": "9becc1cf-c692-41d9-afd7-39844734653e",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "bbf85f6bf60f4f428f9bb800a84af65104d12b54938b900d8e31b5ec5fa02d99"

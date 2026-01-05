@@ -1,5 +1,5 @@
 {
-  "name": "send_image_zalo_captain",
+  "name": "3.send_image_zalo_captain",
   "nodes": [
     {
       "parameters": {
@@ -53,7 +53,7 @@
           "parameters": [
             {
               "name": "p_id",
-              "value": "={{ $('Loop Over Items').item.json.id }}"
+              "value": "={{ $('🛡️ Safe Parser').item.json.db_id }}"
             },
             {
               "name": "p_status",
@@ -343,14 +343,15 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false,
-    "errorWorkflow": "hORJlWLQ84vPW1tX"
+    "errorWorkflow": "hORJlWLQ84vPW1tX",
+    "executionTimeout": 300
   },
-  "versionId": "9f38a557-0749-4aa0-ab54-d60e411ecbd5",
+  "versionId": "b4ac5b1c-34af-4006-80e4-ea13ff571984",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "bbf85f6bf60f4f428f9bb800a84af65104d12b54938b900d8e31b5ec5fa02d99"
